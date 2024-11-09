@@ -27,22 +27,63 @@ auto step(std::span<float> r, const std::span<const float> d, const size_t n) ->
 
 const char *kernel_source =
         R""(
-__kernel void my_kernel(__global float *r, __global const float *d, int n) {
-    int i = get_global_id(0);
-    int j = get_global_id(1);
+__kernel void my_padded_kernel(__global const float* r, __global float* d, int n, int nn) {
+    int ja = get_local_id(0);
+    int i = get_group_id(1);
 
-    if (i >= n || j >= n) return;
+    __global float* t = d + nn * nn;
 
-    float v = HUGE_VALF;
-    for(int k = 0; k < n; ++k) {
-        float x = d[n*j + k];
-        float y = d[n*k + i];
-        float z = x + y;
-        v = min(v, z);
+    for (int jb = 0; jb < nn; jb += 64) {
+        int j = jb + ja;
+        float v = (i < n && j < n) ? r[n*i + j] : HUGE_VALF;
+        d[nn*i + j] = v;
+        t[nn*j + i] = v;
     }
-    r[n*j + i] = v;
+}
+
+__kernel void my_kernel(__global float* r, __global const float* d, int n, int nn) {
+    int ia = get_local_id(0);
+    int ja = get_local_id(1);
+    int ic = get_group_id(0);
+    int jc = get_group_id(1);
+
+    __global const float* t = d + nn * nn;
+
+    float v[8][8];
+    for (int ib = 0; ib < 8; ++ib) {
+        for (int jb = 0; jb < 8; ++jb) {
+            v[ib][jb] = HUGE_VALF;
+        }
+    }
+    for (int k = 0; k < n; ++k) {
+        float x[8];
+        float y[8];
+        for (int ib = 0; ib < 8; ++ib) {
+            int i = ic * 64 + ib * 8 + ia;
+            x[ib] = t[nn*k + i];
+        }
+        for (int jb = 0; jb < 8; ++jb) {
+            int j = jc * 64 + jb * 8 + ja;
+            y[jb] = d[nn*k + j];
+        }
+        for (int ib = 0; ib < 8; ++ib) {
+            for (int jb = 0; jb < 8; ++jb) {
+                v[ib][jb] = min(v[ib][jb], x[ib] + y[jb]);
+            }
+        }
+    }
+    for (int ib = 0; ib < 8; ++ib) {
+        for (int jb = 0; jb < 8; ++jb) {
+            int i = ic * 64 + ib * 8 + ia;
+            int j = jc * 64 + jb * 8 + ja;
+            if (i < n && j < n) {
+                r[n*i + j] = v[ib][jb];
+            }
+        }
+    }
 }
 )"";
+
 
 auto main() -> int {
     constexpr auto n = 6300;
@@ -62,6 +103,8 @@ auto main() -> int {
 auto step(std::span<float> r, const std::span<const float> d, const size_t n) -> void {
     // Sanity Check
     if (r.size() != d.size()) { return; }
+
+    int nn = roundup(n, 64);
 
     // Setup
     cl_int err;
@@ -86,25 +129,47 @@ auto step(std::span<float> r, const std::span<const float> d, const size_t n) ->
     check(err, "clCreateProgramWithSource");
     check_build(program, device, clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr));
 
+    cl_kernel padded_kernel = clCreateKernel(program, "my_padded_kernel", &err);
+    check(err, "clCreateKernel");
     cl_kernel kernel = clCreateKernel(program, "my_kernel", &err);
     check(err, "clCreateKernel");
 
     // Allocate memory & copy data to the cpu
-    cl_mem dGPU = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, n * n * sizeof(float),
+    cl_mem dGPU = clCreateBuffer(context, CL_MEM_READ_WRITE, 2 * nn * nn * sizeof(float), nullptr, &err);
+    check(err, "clCreateBuffer");
+
+    cl_mem rGPU = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, n * n * sizeof(float),
                                  (void *) d.data(), &err);
     check(err, "clCreateBuffer");
 
-    cl_mem rGPU = clCreateBuffer(context, CL_MEM_WRITE_ONLY, n * n * sizeof(float), nullptr, &err);
-    check(err, "clCreateBuffer");
+    // Run kernel
+    {
+        size_t wlsize[2] = {64, 1};
+        size_t wgsize[2] = {64, size_t(nn)};
+        CHECK(clSetKernelArg(padded_kernel, 0, sizeof(cl_mem), &rGPU));
+        CHECK(clSetKernelArg(padded_kernel, 1, sizeof(cl_mem), &dGPU));
+        CHECK(clSetKernelArg(padded_kernel, 2, sizeof(int), &n));
+        CHECK(clSetKernelArg(padded_kernel, 3, sizeof(int), &nn));
+        CHECK(clEnqueueNDRangeKernel(
+            queue, padded_kernel, 2, nullptr, wgsize,
+            wlsize, 0, nullptr, nullptr
+        ));
+        CHECK(clFinish(queue));
+    }
 
     // Run kernel
-    size_t wlsize[2] = {16, 16};
-    size_t wgsize[2] = {size_t(roundup(n, wlsize[0])), size_t(roundup(n, wlsize[1]))};
-    CHECK(clSetKernelArg(kernel, 0, sizeof(cl_mem), &rGPU));
-    CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &dGPU));
-    CHECK(clSetKernelArg(kernel, 2, sizeof(int), &n));
-    CHECK(clEnqueueNDRangeKernel(queue, kernel, 2, nullptr, wgsize, wlsize, 0, nullptr,nullptr));
-    CHECK(clFinish(queue));
+    {
+        size_t wlsize[2] = {8, 8};
+        size_t wgsize[2] = {size_t(nn / 8), size_t(nn / 8)};
+        CHECK(clSetKernelArg(kernel, 0, sizeof(cl_mem), &rGPU));
+        CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &dGPU));
+        CHECK(clSetKernelArg(kernel, 2, sizeof(int), &n));
+        CHECK(clSetKernelArg(kernel, 3, sizeof(int), &nn));
+        CHECK(clEnqueueNDRangeKernel(
+            queue, kernel, 2, nullptr, wgsize, wlsize, 0, nullptr, nullptr
+        ));
+        CHECK(clFinish(queue));
+    }
 
     // Copy data back to GPU & release memory
     CHECK(clEnqueueReadBuffer(queue,rGPU, true, 0, n * n * sizeof(float), r.data(), 0, nullptr, nullptr));
