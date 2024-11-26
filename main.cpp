@@ -9,19 +9,19 @@
 #include <CL/cl.h>
 #endif
 
-static inline auto random_num(const float lbound, const float ubound) -> float;
+#define CL_TARGET_OPENCL_VERSION 120
 
-static inline auto random_vec(const size_t n) -> std::vector<float>;
+static inline auto random_vec(size_t n) -> std::vector<float>;
 
 static inline auto roundup(int a, int b) -> int;
 
 static inline auto divup(int a, int b) -> int;
 
-static inline void check(const cl_int err, const std::string_view context);
+static inline auto check(cl_int err, std::string_view context) -> void;
 
-static inline void check_build(const cl_program program, const cl_device_id device, const cl_int err);
+static inline auto check_build(cl_program program, cl_device_id device, cl_int err) -> void;
 
-auto step(std::span<float> r, const std::span<const float> d, const size_t n) -> void;
+auto step(std::span<float> r, std::span<const float> d, size_t n) -> void;
 
 #define CHECK(x) check(x, #x);
 
@@ -100,7 +100,7 @@ auto main() -> int {
     return 0;
 }
 
-auto step(std::span<float> r, const std::span<const float> d, const size_t n) -> void {
+auto step(const std::span<float> r, const std::span<const float> d, const size_t n) -> void {
     // Sanity Check
     if (r.size() != d.size()) { return; }
 
@@ -198,7 +198,7 @@ static inline void check(const cl_int err, const std::string_view context) {
     }
 }
 
-static inline void check_build(cl_program program, cl_device_id device, cl_int err) {
+static inline auto check_build(cl_program program, cl_device_id device, cl_int err) -> void {
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         std::cerr << "OpenCL build failure: " << std::endl;
         size_t len;
@@ -230,10 +230,12 @@ static inline auto random_vec(const size_t n) -> std::vector<float> {
         }
 
         std::mt19937 &g = generators[omp_get_thread_num()];
-        std::uniform_real_distribution<float> distrib{0.f, 10.f};
+        std::uniform_real_distribution distrib{0.f, 10.f};
 
 #pragma omp for
+        // OpenMP is better at vectorizing C-style loops, so I can't use a range based one
         for (size_t i = 0; i < buf.size(); ++i) {
+            // NOLINT(*-loop-convert)
             buf[i] = distrib(g);
         }
     }
