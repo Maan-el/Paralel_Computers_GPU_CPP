@@ -1,0 +1,60 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Release-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.29"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Programming_Parallel_Computers_GPU",
+					"targetIndexes" : 
+					[
+						0
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "Programming_Parallel_Computers_GPU::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Programming_Parallel_Computers_GPU-Release-d9bb8d2cfe0805c07f77.json",
+					"name" : "Programming_Parallel_Computers_GPU",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/manoel/Documentos/Prog/Cpp/Programming_Parallel_Computers_GPU/cmake-build-release",
+		"source" : "/home/manoel/Documentos/Prog/Cpp/Programming_Parallel_Computers_GPU"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}
