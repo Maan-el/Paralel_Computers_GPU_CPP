@@ -1,3 +1,0 @@
-/home/manoel/Documentos/Prog/Cpp/Programming_Parallel_Computers_GPU/cmake-build-release/CMakeFiles/Programming_Parallel_Computers_GPU.dir
-/home/manoel/Documentos/Prog/Cpp/Programming_Parallel_Computers_GPU/cmake-build-release/CMakeFiles/edit_cache.dir
-/home/manoel/Documentos/Prog/Cpp/Programming_Parallel_Computers_GPU/cmake-build-release/CMakeFiles/rebuild_cache.dir

@@ -1,6 +1,0 @@
-# ninja log v6
-2	159	1731189963152014230	CMakeFiles/Programming_Parallel_Computers_GPU.dir/main.cpp.o.ddi	6bbdb9b28e99ec19
-1590	1676	1731189964739983487	Programming_Parallel_Computers_GPU	2275ef029076e635
-159	163	1731189963309011191	CMakeFiles/Programming_Parallel_Computers_GPU.dir/CXX.dd	c08b7dd6c9a29374
-159	163	1731189963309011191	CMakeFiles/Programming_Parallel_Computers_GPU.dir/main.cpp.o.modmap	c08b7dd6c9a29374
-163	1589	1731189963313011114	CMakeFiles/Programming_Parallel_Computers_GPU.dir/main.cpp.o	5d605cef37a5c54
